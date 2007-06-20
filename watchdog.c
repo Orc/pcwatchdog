@@ -168,6 +168,11 @@ setArmtime(int f, char *arg)
 
     bzero(pkt, sizeof pkt);
 
+    if (strcmp(arg, "?") == 0) {
+	printf("usage: pcwatchdog armtime=NN (0 to 65535 seconds)\n");
+	return;
+    }
+
     time = atoi(arg);
 
     if (time > 0xFFFF)
@@ -178,8 +183,6 @@ setArmtime(int f, char *arg)
 
 	if (ret = command(f, 0x11, pkt, sizeof pkt))
 	    printf("Set Arm Time: status=%d\n", pkt[2]);
-	else
-	    fprintf(stderr, "Cannot set Arm Time\n");
     }
 }
 
@@ -211,6 +214,11 @@ setAlarm(int f, char *arg)
 
     bzero(pkt, sizeof pkt);
 
+    if (strcmp(arg, "?") == 0) {
+	printf("usage: pcwatchdog alarm=NN (1-65535 seconds)\n"
+	       "       pcwatchdog alarm=0  (reset to default value)\n");
+	exit(1);
+    }
     time = atoi(arg);
 
     if (time > 0xFFFF)
@@ -240,11 +248,9 @@ settrigger(int f, char *arg)
 
     bzero(pkt, sizeof pkt);
     if (arg) {
-	if ( (zero = atoi(arg)) != 0 ) {
-	    fprintf(stderr,
-"usage: watch trigger      # read the re-trigger count\n"
-"             trigger=0    # reset the re-trigger count\n");
-	    exit(1);
+	if (strcmp(arg, "?") == 0 || atoi(arg) != 0) {
+	    printf("usage: pcwatchdog trigger=0 (clear the re-trigger count)\n");
+	    return;
 	}
 	pkt[2] = 1;
     }
@@ -284,8 +290,6 @@ enablewatchdog(int f)
     if ( resp = command(f, 0x30, pkt, sizeof pkt) ) {
 	if (resp[2])
 	    printf("Watchdog is enabled\n");
-	else
-	    printf("Error: Watchdog is DISABLED!\n");
     }
 }
 
@@ -304,9 +308,7 @@ disablewatchdog(int f)
     pkt[2] = 0xC3;
 
     if ( resp = command(f, 0x30, pkt, sizeof pkt) ) {
-	if (resp[2])
-	    printf("Error: Watchdog is ENABLED!\n");
-	else
+	if (resp[2] == 0)
 	    printf("Watchdog is disabled\n");
     }
 }
@@ -353,10 +355,22 @@ setrelay(int f, char *flags)
     char *s;
     unsigned char *resp;
 
+    if ( strcmp(flags, "?") == 0 ) {
+	printf("usage: pcwatchdog relay=flag{,flag(s)}\n"
+	       "  flags are:  ON        -- close the relay\n"
+	       "              OFF       -- open the relay\n"
+	       "              PULSE     -- pulse the relay on reset\n"
+	       "              LATCH     -- close the relay after reset\n"
+	       "              INVERSION -- close the relay at power-up\n");
+	return;
+    }
+
     bzero(pkt, sizeof pkt);
 
     for (s = strtok(flags, ","); s; s = strtok(0, ","))
-	if (strcasecmp(s, "on") == 0)
+	if (strcasecmp(s, "off") == 0)
+	    pkt[2] &= ~0x01;
+	else if (strcasecmp(s, "on") == 0)
 	    pkt[2] |= 0x01;
 	else if (strcasecmp(s, "pulse") == 0)
 	    pkt[2] |= 0x02;
@@ -408,6 +422,15 @@ setbuzzer(int f, char *arg)
 
     flags = 0;
 
+    if (strcmp(arg, "?") == 0) {
+	printf("usage: pcwatchdog buzzer=flag{,flag(s)}\n"
+	       "   flags are: ON       -- start the buzzer\n"
+	       "              OFF      -- stop the buzzer\n"
+	       "              SHORT    -- sound the buzzer for 2.5 seconds on reset\n"
+	       "              ANNOYING -- turn the buzzer on forever on reset\n"
+	       "              STORE    -- store buzzer state in CMOS\n");
+	return;
+    }
     for (opt = strtok(arg, ","); opt; opt = strtok(0, ","))
 	if (strcasecmp(opt, "on") == 0)
 	    flags |= 0x04;
@@ -448,11 +471,9 @@ clearresetcount(int f, char *opt)
 
     bzero(pkt, sizeof pkt);
 
-    if (atoi(opt) != 0) {
-	fprintf(stderr,
-"usage: watch trigger      # read the re-trigger count\n"
-"             trigger=0    # reset the re-trigger count\n");
-	exit(1);
+    if (strcmp(opt, "?") == 0 || atoi(opt) != 0) {
+	printf("usage: pcwatchdog trigger=0 (clear the re-trigger count)\n");
+	return;
     }
 
     pkt[2] = 1;
@@ -490,6 +511,12 @@ setpulse(int f, char *opt)
     char *rest;
     int time;
 
+    if (strcmp(opt, "?") == 0) {
+	printf("usage: pcwatchdog pulse=NN (set reset time to NN 50ms ticks)\n"
+	       "usage: pcwatchdog pulse=NNms (set reset time to NN ms)\n"
+	       "usage: pcwatchdog pulse=NNseconds (set reset time to NN secs)\n");
+	return;
+    }
     time = strtol(opt, &rest, 10);
 
     if (rest == opt || time < 0)
@@ -544,24 +571,61 @@ struct cmdtab {
     char *action;
     void (*f)(int);
     void (*set)(int,char*);
+    char *describe;
 } cmds[] = {
-    { "ping",     ping,            0 },
-    { "temp",     temp,            0 },
-    { "status",   status,          0 },
-    { "switches", switches,        0 },
-    { "version",  firmware,        0 },
-    { "armtime",  getArmtime,      setArmtime },
-    { "alarm",    getAlarm,        setAlarm },
-    { "trigger",  triggercount,    settrigger },
-    { "enable",   enablewatchdog,  0 },
-    { "disable",  disablewatchdog, 0 },
-    { "relay",    getrelay,        setrelay },
-    { "buzzer",   getbuzzer,       setbuzzer },
-    { "count",    getresetcount,   clearresetcount },
-    { "pulse",    getpulse,        setpulse },
-    { "reset",    bigredswitch,    0 },
+    { "ping",     ping,            0,
+	    "ping the watchdog card, resetting the alarm clock" },
+    { "temp",     temp,            0,
+	    "read the pcwatchdog thermometer" },
+    { "status",   status,          0,
+	    "read the current status of the pcwatchdog" },
+    { "switches", switches,        0,
+	    "show the current settings on the dip switch bank" },
+    { "version",  firmware,        0,
+	    "show the firmware version#" },
+    { "armtime",  getArmtime,      setArmtime,
+	    "show (=set) the startup arming delay" },
+    { "alarm",    getAlarm,        setAlarm,
+	    "show the remaining alarm time (=set the default alarm time)" },
+    { "trigger",  triggercount,    settrigger, 
+	    "show (=0; clear) how many times the watchdog was been pinged" },
+    { "enable",   enablewatchdog, 0,
+	    "turn the watchdog on" },
+    { "disable",  disablewatchdog, 0,
+	    "turn the watchdog off" },
+    { "relay",    getrelay,        setrelay,
+	    "show (=set) external relay parameters" },
+    { "buzzer",   getbuzzer,       setbuzzer,
+	    "show (=set) buzzer parameters" },
+    { "count",    getresetcount,   clearresetcount,
+	    "show (=0; clear) how many times the computer has been reset" },
+    { "pulse",    getpulse,        setpulse,
+	    "show (=configure) how long a reset lasts" },
+    { "reset",    bigredswitch,    0,
+	    "press the Big Red Switch" },
     { 0 },
 };
+
+
+printhelp()
+{
+    int i;
+
+    printf("usage: pcwatchdog [-f device] [-h]\n"
+	   "       pcwatchdog [-f device] command{,command}\n"
+	   "\n"
+	   "If not specified, pcwatchdog uses the device /dev/uhid0\n"
+	   "\n"
+	   " the commands are:\n");
+
+    for (i=0; cmds[i].action; i++)
+	printf("%-10s-- %s.\n", cmds[i].action, cmds[i].describe);
+
+    printf("\n"
+	   "the command ``pcwatchdog command=?'' returns a description of\n"
+	   "the valid arguments for the command\n");
+    exit(0);
+}
 
 main(int argc, char **argv)
 {
@@ -569,10 +633,12 @@ main(int argc, char **argv)
     int f;
     int opt;
 
-    while ( (opt=getopt(argc, argv, "f:")) != EOF ) {
+    while ( (opt=getopt(argc, argv, "f:?h")) != EOF ) {
 	switch (opt) {
 	case 'f':   device = optarg;
 		    break;
+	case '?':
+	case 'h':   printhelp();
 	default :   fprintf(stderr, "usage: watch [-f port] [command {...}]\n");
 		    exit(1);
 	}
@@ -585,6 +651,8 @@ main(int argc, char **argv)
 
     if (optind == argc)
 	status(f);
+    else if (strcmp(argv[optind], "help") == 0 || strcmp(argv[optind], "?") == 0)
+	printhelp();
     else while (optind < argc) {
 	int i;
 	int len;
