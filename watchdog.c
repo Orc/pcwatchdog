@@ -612,7 +612,7 @@ printhelp()
     int i;
 
     printf("usage: pcwatchdog [-f device] [-h]\n"
-	   "       pcwatchdog [-f device] command{,command}\n"
+	   "       pcwatchdog [-f device] command {...}\n"
 	   "\n"
 	   "If not specified, pcwatchdog uses the device /dev/uhid0\n"
 	   "\n"
