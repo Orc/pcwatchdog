@@ -188,6 +188,54 @@ setArmtime(int f, char *arg)
 
 
 /*
+ * display the stored arming delay
+ */
+void
+getStoredArmtime(int f)
+{
+    unsigned char *pkt = query(f, 0x14);
+    int time;
+
+    if (pkt) {
+	time = (pkt[1] << 8) | pkt[2];
+	printf("Stored Arm Time: %d\n", time);
+    }
+}
+
+
+/*
+ * set the stored arming delay
+ */
+void
+setStoredArmtime(int f, char *arg)
+{
+    unsigned int time;
+    unsigned char pkt[6];
+    unsigned char *ret;
+
+    bzero(pkt, sizeof pkt);
+
+    if (strcmp(arg, "?") == 0) {
+	printf("usage: pcwatchdog stored-armtime=NN (1 to 65535 seconds)\n"
+	       "       pcwatchdog stored-armtime=0 (clear the stored arm time)\n");
+	return;
+    }
+
+    time = atoi(arg);
+
+    if (time > 0xFFFF)
+	fprintf(stderr, "cannot store %s as the Arm Time\n", arg);
+    else {
+	pkt[1] = (time >> 8) & 0xff;
+	pkt[2] = time & 0xff;
+
+	if (ret = command(f, 0x15, pkt, sizeof pkt))
+	    printf("Stored Arm Time: status=%d\n", pkt[2]);
+    }
+}
+
+
+/*
  * get the time left on the watchdog timer
  */
 void
@@ -229,6 +277,54 @@ setAlarm(int f, char *arg)
 
 	if ( command(f, 0x19, pkt, sizeof pkt) == 0 ) {
 	    fprintf(stderr, "Cannot set Watchdog Time\n");
+	    exit(1);
+	}
+    }
+}
+
+
+/*
+ * get the stored alarm time
+ */
+void
+getStoredAlarm(int f)
+{
+    unsigned char *pkt = query(f,0x1C);
+    unsigned int time;
+
+    if (pkt) {
+	time = (pkt[1]<<8) | pkt[2];
+	printf("Stored Watchdog Time = %d\n", time);
+    }
+}
+
+
+/*
+ * set the CMOS watchdog timer
+ */
+void
+setStoredAlarm(int f, char *arg)
+{
+    unsigned int time;
+    unsigned char pkt[6];
+
+    bzero(pkt, sizeof pkt);
+
+    if (strcmp(arg, "?") == 0) {
+	printf("usage: pcwatchdog stored-alarm=NN (1-65535 seconds)\n"
+	       "       pcwatchdog stored-alarm=0  (reset to default value)\n");
+	exit(1);
+    }
+    time = atoi(arg);
+
+    if (time > 0xFFFF)
+	fprintf(stderr, "cannot store %s as the Watchdog Time\n", arg);
+    else {
+	pkt[1] = (time >> 8) & 0xff;
+	pkt[2] = time & 0xff;
+
+	if ( command(f, 0x1D, pkt, sizeof pkt) == 0 ) {
+	    fprintf(stderr, "Cannot store Watchdog Time\n");
 	    exit(1);
 	}
     }
@@ -583,10 +679,14 @@ struct cmdtab {
 	    "show the current settings on the dip switch bank" },
     { "version",  firmware,        0,
 	    "show the firmware version#" },
-    { "armtime",  getArmtime,      setArmtime,
+    { "arm-time",  getArmtime,      setArmtime,
 	    "show (=set) the startup arming delay" },
+    { "stored-arm-time",  getStoredArmtime,      setStoredArmtime,
+	    "show (=set) the stored startup arming delay" },
     { "alarm",    getAlarm,        setAlarm,
 	    "show the remaining alarm time (=set the default alarm time)" },
+    { "stored-alarm",    getStoredAlarm,        setStoredAlarm,
+	    "show (=set) the stored alarm time" },
     { "trigger",  triggercount,    settrigger, 
 	    "show (=0; clear) how many times the watchdog was been pinged" },
     { "enable",   enablewatchdog, 0,
@@ -619,7 +719,7 @@ printhelp()
 	   " the commands are:\n");
 
     for (i=0; cmds[i].action; i++)
-	printf("%-10s-- %s.\n", cmds[i].action, cmds[i].describe);
+	printf("%-15s-- %s.\n", cmds[i].action, cmds[i].describe);
 
     printf("\n"
 	   "the command ``pcwatchdog command=?'' returns a description of\n"
