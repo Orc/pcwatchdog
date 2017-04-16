@@ -1,0 +1,33 @@
+pcwatchdog is a little utility to work with the Berkshire Products
+USB PC Watchdog.
+
+To build:  cc -o watchdog watchdog.c
+
+watchdog -h gives a brief help message describing what you can do with it:
+
+usage: pcwatchdog [-f device] [-h]
+       pcwatchdog [-f device] command {...}
+
+If not specified, pcwatchdog uses the device /dev/uhid0
+
+ the commands are:
+ping           -- ping the watchdog card, resetting the alarm clock.
+temp           -- read the pcwatchdog thermometer.
+status         -- read the current status of the pcwatchdog.
+switches       -- show the current settings on the dip switch bank.
+version        -- show the firmware version#.
+arm-time       -- show (=set) the startup arming delay.
+stored-arm-time-- show (=set) the stored startup arming delay.
+alarm          -- show the remaining alarm time (=set the default alarm time).
+stored-alarm   -- show (=set) the stored alarm time.
+trigger        -- show (=0; clear) how many times the watchdog was been pinged.
+enable         -- turn the watchdog on.
+disable        -- turn the watchdog off.
+relay          -- show (=set) external relay parameters.
+buzzer         -- show (=set) buzzer parameters.
+count          -- show (=0; clear) how many times the computer has been reset.
+pulse          -- show (=configure) how long a reset lasts.
+reset          -- press the Big Red Switch.
+
+the command ``pcwatchdog command=?'' returns a description of
+the valid arguments for the command
